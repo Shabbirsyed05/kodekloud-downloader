@@ -101,10 +101,22 @@ def dl(
     default=False,
     help="Write in seperate markdown files.",
 )
-def dl_quiz(output_dir: Union[Path, str], sep: bool):
-    Path(output_dir).mkdir(parents=True, exist_ok=True)
-    download_quiz(output_dir, sep)
+def sanitize_filename(filename: str) -> str:
+    """Sanitize the filename to remove invalid characters."""
+    return re.sub(r'[<>:"/\\|?*]', '_', filename)
 
+def dl_quiz(output_dir: Union[Path, str], sep: bool):
+    # Ensure the output_dir is a Path object
+    output_dir = Path(output_dir)
+    
+    # Create the directory if it doesn't exist
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Sanitize output_dir (if necessary) to handle invalid filename characters
+    sanitized_dir = sanitize_filename(str(output_dir))
+    
+    # Call the download function, passing the sanitized path
+    download_quiz(sanitized_dir, sep)
 
 if __name__ == "__main__":
     kodekloud()
