@@ -3,6 +3,9 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Union
 
+import os
+from typing import List
+
 import markdownify
 import requests
 import yt_dlp
@@ -22,6 +25,10 @@ from kodekloud_downloader.models.quiz import Quiz
 
 logger = logging.getLogger(__name__)
 
+def sanitize_filename(filename: str) -> str:
+    """Sanitize the filename to remove invalid characters."""
+    # Replace invalid characters with an underscore
+    return re.sub(r'[<>:"/\\|?*]', '_', filename)
 
 def download_quiz(output_dir: str, sep: bool) -> None:
     """
@@ -36,55 +43,70 @@ def download_quiz(output_dir: str, sep: bool) -> None:
     :raises requests.RequestException: For errors related to the HTTP request.
     :raises IOError: For file I/O errors.
     """
+    
+    # Create the directory if it doesn't exist
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
     quiz_markdown = [] if sep else ["# KodeKloud Quiz"]
-    response = requests.get("https://mcq-backend-main.kodekloud.com/api/quizzes/all")
-    response.raise_for_status()
+    try:
+        response = requests.get("https://mcq-backend-main.kodekloud.com/api/quizzes/all")
+        response.raise_for_status()  # Will raise an exception for non-2xx responses
 
-    quizzes = [Quiz(**item) for item in response.json()]
-    print(f"Total {len(quizzes)} quiz available!")
-    for quiz_index, quiz in enumerate(quizzes, start=1):
-        quiz_name = quiz.name or quiz.topic
-        quiz_markdown.append(f"\n## {quiz_name}")
-        print(f"Fetching Quiz {quiz_index} - {quiz_name}")
-        questions = quiz.fetch_questions()
+        quizzes = [Quiz(**item) for item in response.json()]
+        print(f"Total {len(quizzes)} quizzes available!")
 
-        for index, question in enumerate(questions, start=1):
-            quiz_markdown.append(f"\n**{index}. {question.question.strip()}**")
-            quiz_markdown.append("\n")
-            for answer in question.answers:
-                quiz_markdown.append(f"* [ ] {answer}")
-            quiz_markdown.append(f"\n**Correct answer:**")
-            for answer in question.correctAnswers:
-                quiz_markdown.append(f"* [x] {answer}")
+        for quiz_index, quiz in enumerate(quizzes, start=1):
+            quiz_name = quiz.name or quiz.topic
+            sanitized_quiz_name = sanitize_filename(quiz_name)  # Sanitize quiz name
+            quiz_markdown.append(f"\n## {quiz_name}")
+            print(f"Fetching Quiz {quiz_index} - {quiz_name}")
+            questions = quiz.fetch_questions()
 
-            if script := question.code.get("script"):
-                quiz_markdown.append(f"\n**Code**: \n{script}")
-            if question.explanation:
-                quiz_markdown.append(f"\n**Explaination**: {question.explanation}")
-            if question.documentationLink:
-                quiz_markdown.append(
-                    f"\n**Documentation Link**: {question.documentationLink}"
-                )
+            for index, question in enumerate(questions, start=1):
+                quiz_markdown.append(f"\n**{index}. {question.question.strip()}**")
+                quiz_markdown.append("\n")
+                for answer in question.answers:
+                    quiz_markdown.append(f"* [ ] {answer}")
+                quiz_markdown.append(f"\n**Correct answer:**")
+                for answer in question.correctAnswers:
+                    quiz_markdown.append(f"* [x] {answer}")
 
-        if sep and quiz_name:
-            output_file = Path(output_dir) / f"{quiz_name.replace('/', '')}.md"
+                if script := question.code.get("script"):
+                    quiz_markdown.append(f"\n**Code**: \n{script}")
+                if question.explanation:
+                    quiz_markdown.append(f"\n**Explanation**: {question.explanation}")
+                if question.documentationLink:
+                    quiz_markdown.append(
+                        f"\n**Documentation Link**: {question.documentationLink}"
+                    )
+
+            if sep and quiz_name:
+                output_file = output_dir / f"{sanitized_quiz_name}.md"
+                markdown_text = "\n".join(quiz_markdown)
+
+                try:
+                    with open(output_file, "w", encoding="utf-8") as f:
+                        f.write(markdown_text)
+                    print(f"Quiz file written in {output_file}")
+                except IOError as e:
+                    print(f"Error writing file {output_file}: {e}")
+                quiz_markdown = []
+            else:
+                quiz_markdown.append("\n---\n")
+
+        if not sep:
+            output_file = output_dir / "KodeKloud_Quiz.md"
             markdown_text = "\n".join(quiz_markdown)
 
-            with open(output_file, "w", encoding="utf-8") as f:
-                f.write(markdown_text)
-            print(f"Quiz file written in {output_file}")
+            try:
+                Path(output_file).write_text(markdown_text, encoding="utf-8")
+                print(f"Quiz file written in {output_file}")
+            except IOError as e:
+                print(f"Error writing file {output_file}: {e}")
 
-            quiz_markdown = []
-        else:
-            quiz_markdown.append("\n---\n")
-
-    if not sep:
-        output_file = Path(output_dir) / "KodeKloud_Quiz.md"
-        markdown_text = "\n".join(quiz_markdown)
-
-        Path(output_file).write_text(markdown_text)
-        print(f"Quiz file written in {output_file}")
-
+    except requests.RequestException as e:
+        print(f"Error fetching quiz data: {e}")
 
 def parse_course_from_url(url: str) -> CourseDetail:
     """
