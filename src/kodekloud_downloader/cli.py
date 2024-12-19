@@ -101,9 +101,39 @@ def dl(
     default=False,
     help="Write in seperate markdown files.",
 )
+# Function to sanitize filenames by replacing invalid characters
+def sanitize_filename(filename: str) -> str:
+    # Replace characters that are not allowed in filenames on Windows
+    return re.sub(r'[<>:"/\\|?*]', '_', filename)
+
+# The main function to download the quiz
 def dl_quiz(output_dir: Union[Path, str], sep: bool):
-    Path(output_dir).mkdir(parents=True, exist_ok=True)
+    # Ensure the output directory exists
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Call the download function, making sure to sanitize filenames
     download_quiz(output_dir, sep)
+
+# Example of how download_quiz might work (you'd need to define this in your code)
+def download_quiz(output_dir: Path, sep: bool):
+    # Example for downloading and saving a quiz file
+    quiz_filename = 'Are you already a collaborator?.md'
+    
+    # Sanitize the filename before saving
+    sanitized_filename = sanitize_filename(quiz_filename)
+    
+    # Construct the full file path
+    output_file = output_dir / sanitized_filename
+    
+    # Now you can safely write the file
+    with open(output_file, 'w', encoding='utf-8') as f:
+        f.write('Quiz content goes here')
+    
+    print(f"Quiz downloaded and saved as {output_file}")
+
+# Example usage
+dl_quiz("KodeKloudQuiz", sep=True)
 
 
 if __name__ == "__main__":
