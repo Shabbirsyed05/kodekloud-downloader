@@ -1,4 +1,6 @@
 import logging
+import re
+import sys
 from pathlib import Path
 from typing import Union
 
@@ -15,12 +17,19 @@ from kodekloud_downloader.main import (
 from kodekloud_downloader.models.helper import collect_all_courses
 
 
+# Set up logging configuration
+logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+def sanitize_filename(filename: str) -> str:
+    """Sanitize the filename to remove invalid characters."""
+    # Replace characters that are not allowed in filenames on Windows and other OS.
+    return re.sub(r'[<>:"/\\|?*]', '_', filename)
+
+
 @click.group()
 @click.option("-v", "--verbose", count=True, help="Increase log level verbosity")
 def kodekloud(verbose):
-    logging.basicConfig(
-        format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO
-    )
     if verbose == 1:
         logging.getLogger().setLevel(logging.INFO)
     elif verbose >= 2:
@@ -40,7 +49,7 @@ def kodekloud(verbose):
     "--output-dir",
     "-o",
     default=Path.home() / "Downloads",
-    help="Output directory where downloaded files will be store.",
+    help="Output directory where downloaded files will be stored.",
 )
 @click.option(
     "--cookie",
@@ -53,7 +62,7 @@ def kodekloud(verbose):
     "-mdc",
     default=3,
     type=int,
-    help="If same video is downloaded this many times, then download stops",
+    help="If same video is downloaded this many times, then download stops.",
 )
 def dl(
     course_url,
@@ -62,6 +71,7 @@ def dl(
     cookie,
     max_duplicate_count: int,
 ):
+    output_dir = Path(output_dir)  # Ensure output_dir is a Path object
     if course_url is None:
         courses = collect_all_courses()
         selected_courses = select_courses(courses)
@@ -83,8 +93,8 @@ def dl(
             max_duplicate_count=max_duplicate_count,
         )
     else:
-        logging.error("Please enter a valid URL")
-        SystemExit(1)
+        logger.error("Please enter a valid URL")
+        sys.exit(1)  # Exit with status code 1
 
 
 @kodekloud.command()
@@ -99,41 +109,33 @@ def dl(
     is_flag=True,
     show_default=True,
     default=False,
-    help="Write in seperate markdown files.",
+    help="Write in separate markdown files.",
 )
-# Function to sanitize filenames by replacing invalid characters
-def sanitize_filename(filename: str) -> str:
-    # Replace characters that are not allowed in filenames on Windows
-    return re.sub(r'[<>:"/\\|?*]', '_', filename)
-
-# The main function to download the quiz
 def dl_quiz(output_dir: Union[Path, str], sep: bool):
-    # Ensure the output directory exists
-    output_dir = Path(output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
+    """Download quizzes and save them in markdown format."""
+    output_dir = Path(output_dir)  # Ensure output_dir is a Path object
+    output_dir.mkdir(parents=True, exist_ok=True)  # Make sure the output dir exists
 
-    # Call the download function, making sure to sanitize filenames
+    # Call the download_quiz function
     download_quiz(output_dir, sep)
 
-# Example of how download_quiz might work (you'd need to define this in your code)
+
+# Example of how the `download_quiz` function might work
 def download_quiz(output_dir: Path, sep: bool):
     # Example for downloading and saving a quiz file
     quiz_filename = 'Are you already a collaborator?.md'
-    
+
     # Sanitize the filename before saving
     sanitized_filename = sanitize_filename(quiz_filename)
-    
+
     # Construct the full file path
     output_file = output_dir / sanitized_filename
-    
+
     # Now you can safely write the file
     with open(output_file, 'w', encoding='utf-8') as f:
         f.write('Quiz content goes here')
-    
-    print(f"Quiz downloaded and saved as {output_file}")
 
-# Example usage
-dl_quiz("KodeKloudQuiz", sep=True)
+    logger.info(f"Quiz downloaded and saved as {output_file}")
 
 
 if __name__ == "__main__":
