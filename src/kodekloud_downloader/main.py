@@ -35,6 +35,7 @@ def download_quiz(output_dir: str, sep: bool) -> None:
     quiz_markdown = [] if sep else ["# KodeKloud Quiz"]
 
     try:
+        # Fetch quizzes from the API
         response = requests.get("https://mcq-backend-main.kodekloud.com/api/quizzes/all")
         response.raise_for_status()  # Will raise an exception for non-2xx responses
         quizzes = [Quiz(**item) for item in response.json()]
@@ -42,9 +43,10 @@ def download_quiz(output_dir: str, sep: bool) -> None:
 
         for quiz_index, quiz in enumerate(quizzes, start=1):
             quiz_name = quiz.name or quiz.topic
-            sanitized_quiz_name = sanitize_filename(quiz_name)
+            sanitized_quiz_name = sanitize_filename(quiz_name)  # Sanitize the quiz name
             quiz_markdown.append(f"\n## {quiz_name}")
             logger.info(f"Fetching Quiz {quiz_index} - {quiz_name}")
+            
             questions = quiz.fetch_questions()
 
             for index, question in enumerate(questions, start=1):
@@ -89,3 +91,6 @@ def download_quiz(output_dir: str, sep: bool) -> None:
 
     except requests.RequestException as e:
         logger.error(f"Error fetching quiz data: {e}")
+
+    except Exception as e:
+        logger.error(f"Unexpected error: {e}")
